@@ -47,7 +47,8 @@ Pour développer ou compiler :
    ```
 3. Installez les dépendances :
    ```bash
-   pip install opencv-python Pillow py2app
+   pip install -r requirements.txt
+   pip install -r requirements-dev.txt  # Pour les outils de développement
    ```
 
 ## Utilisation
@@ -97,22 +98,36 @@ Le fichier `setup.py` contient la configuration py2app. Vous pouvez personnalise
 
 ```
 LastFrame_extract/
-├── extract_last_frame.py    # Script Python principal
-├── setup.py                  # Configuration py2app
-├── README.md                 # Documentation (format Markdown)
-├── README.txt                # Documentation (format texte)
-├── venv/                     # Environnement virtuel Python
-├── build/                    # Fichiers de compilation temporaires
-└── dist/                     # Application compilée
+├── extract_last_frame.py      # Script Python principal
+├── setup.py                    # Configuration py2app
+├── pytest.ini                  # Configuration des tests
+├── requirements.txt            # Dépendances runtime
+├── requirements-dev.txt        # Dépendances développement
+├── LICENSE                     # Licence d'utilisation
+├── README.md                   # Documentation (format Markdown)
+├── tests/                      # Tests automatisés
+│   ├── unit/                  # Tests unitaires
+│   ├── integration/           # Tests d'intégration
+│   └── conftest.py            # Fixtures pytest
+├── venv/                       # Environnement virtuel Python (non suivi)
+├── build/                      # Fichiers de compilation (non suivi)
+└── dist/                       # Application compilée (non suivi)
     └── Video Frame Extractor.app
 ```
 
 ## Dépendances
 
-- **opencv-python** (4.12.0.88) : Traitement vidéo et extraction de frames
-- **Pillow** (12.0.0) : Manipulation d'images et affichage
+Voir `requirements.txt` pour les dépendances exactes.
+
+**Runtime** :
+- **opencv-python** : Traitement vidéo et extraction de frames
+- **Pillow** : Manipulation d'images et affichage
+- **numpy** : Calculs numériques (dépendance OpenCV)
 - **tkinter** : Interface graphique (inclus avec Python)
-- **py2app** (0.28.9) : Compilation en application macOS
+
+**Développement** (voir `requirements-dev.txt`) :
+- **pytest** : Framework de tests
+- **pytest-cov** : Couverture de code
 
 ## Spécifications techniques
 
@@ -142,13 +157,33 @@ LastFrame_extract/
 - L'application compilée ne fonctionne que sur l'architecture pour laquelle elle a été compilée
 - Certains codecs vidéo spécifiques peuvent ne pas être supportés selon l'installation d'OpenCV
 
+## Tests
+
+Le projet inclut une suite de tests automatisés utilisant pytest.
+
+**Exécuter les tests** :
+```bash
+pytest
+```
+
+**Avec couverture de code** :
+```bash
+pytest --cov
+```
+
+Les tests sont organisés en :
+- **Tests unitaires** (`tests/unit/`) : Testent les fonctions individuelles
+- **Tests d'intégration** (`tests/integration/`) : Testent les workflows complets
+
 ## Auteur
 
 Pierre - 2024
 
 ## Licence
 
-Usage personnel et éducatif.
+Usage personnel et éducatif. Voir le fichier [LICENSE](LICENSE) pour les termes complets.
+
+Ce logiciel est fourni pour un usage personnel et éducatif uniquement. L'utilisation commerciale nécessite une autorisation écrite.
 
 ## Version
 
