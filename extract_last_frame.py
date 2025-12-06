@@ -13,9 +13,11 @@ import os
 from PIL import Image, ImageTk
 import threading
 import platform
+import argparse
+import sys
 
 class VideoFrameExtractorGUI:
-    def __init__(self, root):
+    def __init__(self, root, video_file=None):
         self.root = root
         self.root.title("Extracteur de frame vidéo")
 
@@ -43,6 +45,10 @@ class VideoFrameExtractorGUI:
         self.video_fps = 0
 
         self.create_widgets()
+
+        # Charger le fichier vidéo si fourni en argument
+        if video_file:
+            self.load_video_file(video_file)
 
     def create_widgets(self):
         # Style pour macOS
@@ -191,19 +197,28 @@ class VideoFrameExtractorGUI:
             )
 
         if filename:
-            self.video_path = filename
-            self.video_label.config(text=f"📹 {os.path.basename(filename)}")
-            self.extract_btn.config(state=tk.NORMAL)
-            self.save_btn.config(state=tk.DISABLED)
-            self.output_path = None
-            self.save_info_label.config(text="")
+            self.load_video_file(filename)
 
-            # Afficher les infos de la vidéo
-            self.show_video_info()
+    def load_video_file(self, filename):
+        """Charge un fichier vidéo (depuis GUI ou ligne de commande)"""
+        # Vérifier si le fichier existe
+        if not os.path.exists(filename):
+            messagebox.showerror("Erreur", f"Le fichier n'existe pas:\n{filename}")
+            return
 
-            # Cacher l'aperçu précédent
-            self.preview_canvas.delete("all")
-            self.preview_text.grid(row=0, column=0)
+        self.video_path = filename
+        self.video_label.config(text=f"📹 {os.path.basename(filename)}")
+        self.extract_btn.config(state=tk.NORMAL)
+        self.save_btn.config(state=tk.DISABLED)
+        self.output_path = None
+        self.save_info_label.config(text="")
+
+        # Afficher les infos de la vidéo
+        self.show_video_info()
+
+        # Cacher l'aperçu précédent
+        self.preview_canvas.delete("all")
+        self.preview_text.grid(row=0, column=0)
 
     def show_video_info(self):
         try:
@@ -458,16 +473,57 @@ class VideoFrameExtractorGUI:
                 messagebox.showerror("Erreur", f"Erreur lors de la sauvegarde:\n{e}")
 
 def main():
+    # Parser les arguments en ligne de commande
+    parser = argparse.ArgumentParser(
+        description='Extracteur de dernière frame vidéo vers JPEG',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemples d'utilisation:
+  %(prog)s                          Lance l'interface graphique
+  %(prog)s -g video.mp4            Lance l'interface graphique avec la vidéo pré-chargée
+  %(prog)s video.mp4                Lance l'interface graphique avec la vidéo pré-chargée
+        """
+    )
+
+    parser.add_argument(
+        'video',
+        nargs='?',
+        help='Fichier vidéo à charger (optionnel)'
+    )
+
+    parser.add_argument(
+        '-g', '--gui',
+        metavar='VIDEO',
+        help='Lance l\'interface graphique avec le fichier vidéo spécifié'
+    )
+
+    args = parser.parse_args()
+
+    # Déterminer quel fichier vidéo charger
+    video_file = args.gui if args.gui else args.video
+
+    # Valider le fichier si fourni
+    if video_file and not os.path.exists(video_file):
+        print(f"Erreur: Le fichier '{video_file}' n'existe pas.", file=sys.stderr)
+        sys.exit(1)
+
+    # Lancer l'interface graphique
     root = tk.Tk()
 
     # Configuration spécifique macOS
     if platform.system() == 'Darwin':
+        # Désactiver le menu par défaut de Tkinter pour éviter les crashes dans .app
+        try:
+            root.createcommand('::tk::mac::Quit', root.quit)
+        except:
+            pass
+
         # Apporter l'application au premier plan sur macOS
         root.lift()
         root.attributes('-topmost', True)
         root.after_idle(root.attributes, '-topmost', False)
 
-    app = VideoFrameExtractorGUI(root)
+    app = VideoFrameExtractorGUI(root, video_file=video_file)
     root.mainloop()
 
 if __name__ == "__main__":

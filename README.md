@@ -11,6 +11,7 @@ Video Frame Extractor est une application macOS native qui permet d'extraire la 
 ## Fonctionnalités
 
 - **Sélection de vidéo** : Interface de dialogue native macOS pour choisir une vidéo (MP4, MOV, M4V, AVI, MKV, MPEG)
+- **Interface en ligne de commande** : Lancement de l'application avec un fichier vidéo pré-chargé
 - **Informations vidéo** : Affichage automatique des métadonnées (résolution, durée, FPS)
 - **Extraction rapide** : Extraction de la dernière frame avec indicateur de progression
 - **Aperçu en direct** : Visualisation de l'image extraite avant sauvegarde
@@ -66,6 +67,43 @@ Pour développer ou compiler :
 ```bash
 source venv/bin/activate
 python3 extract_last_frame.py
+```
+
+### Utilisation en ligne de commande
+
+L'application peut être lancée depuis le Terminal avec un fichier vidéo pré-chargé, évitant ainsi d'avoir à le sélectionner manuellement.
+
+**Syntaxe 1 : Avec le flag `-g`**
+```bash
+"Video Frame Extractor.app/Contents/MacOS/Video Frame Extractor" -g /chemin/vers/video.mp4
+```
+
+**Syntaxe 2 : Avec argument positionnel**
+```bash
+"Video Frame Extractor.app/Contents/MacOS/Video Frame Extractor" /chemin/vers/video.mp4
+```
+
+**Exemples pratiques :**
+```bash
+# Depuis le dossier Applications
+"/Applications/Video Frame Extractor.app/Contents/MacOS/Video Frame Extractor" -g ~/Videos/ma_video.mp4
+
+# Depuis le dossier dist/ du projet
+"dist/Video Frame Extractor.app/Contents/MacOS/Video Frame Extractor" ~/Desktop/film.mov
+
+# Avec chemin relatif (si vous êtes dans le bon dossier)
+open -a "Video Frame Extractor" --args -g ./video.mp4
+```
+
+**Notes importantes :**
+- Utilisez toujours des **chemins absolus** pour les fichiers vidéo
+- Les chemins avec espaces doivent être entre guillemets
+- L'application vérifie l'existence du fichier avant de lancer l'interface
+- Une fois lancée, l'application fonctionne normalement avec toutes les fonctionnalités GUI
+
+**Afficher l'aide :**
+```bash
+"Video Frame Extractor.app/Contents/MacOS/Video Frame Extractor" --help
 ```
 
 ## Compilation de l'application
@@ -186,6 +224,11 @@ Usage personnel et éducatif. Voir le fichier [LICENSE](LICENSE) pour les termes
 Ce logiciel est fourni pour un usage personnel et éducatif uniquement. L'utilisation commerciale nécessite une autorisation écrite.
 
 ## Version
+
+**1.1.0** - Ajout interface ligne de commande
+- Support CLI avec options `-g` et argument positionnel
+- Pré-chargement de fichier vidéo depuis le Terminal
+- Validation des chemins de fichiers
 
 **1.0.0** - Version initiale
 - Extraction de la dernière frame
