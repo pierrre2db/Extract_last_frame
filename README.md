@@ -1,4 +1,4 @@
-# Video Frame Extractor
+#2025 Video Frame Extractor
 
 Extracteur de dernière frame vidéo vers JPEG avec interface graphique pour macOS.
 
@@ -215,7 +215,7 @@ Les tests sont organisés en :
 
 ## Auteur
 
-Pierre - 2024
+Pierre - 2025
 
 ## Licence
 
