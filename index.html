@@ -14,6 +14,15 @@
     .hint { color: #4b5563; font-size: 14px; line-height: 1.4; }
     .status { font-size: 14px; color: #111827; }
     .status small { color: #6b7280; }
+    .preview { margin-top: 16px; }
+    .preview img { max-width: 100%; border-radius: 12px; border: 1px solid #e5e7eb; }
+    dialog { border: none; border-radius: 12px; padding: 0; width: min(520px, 100%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); }
+    .dialog-content { padding: 20px; }
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 20px; }
+    .dialog-title { margin: 0 0 8px; font-size: 18px; }
+    .field { display: grid; gap: 6px; margin: 12px 0; }
+    input[type="text"] { padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; }
+    .save-note { margin: 0; font-size: 13px; color: #6b7280; }
   </style>
 </head>
 <body>
@@ -30,12 +39,33 @@
     <p class="status" id="status">Choisis un fichier vidéo.</p>
   </div>
 
+  <div class="preview" id="preview" hidden>
+    <h2>Aperçu de l’image</h2>
+    <img id="previewImage" alt="Aperçu de la dernière image exportée" />
+  </div>
+
   <div style="height: 14px"></div>
 
   <video id="video" controls playsinline></video>
 
   <!-- Canvas caché : sert à capturer l’image -->
   <canvas id="canvas" style="display:none"></canvas>
+
+  <dialog id="exportDialog">
+    <div class="dialog-content">
+      <h2 class="dialog-title">Exporter l’image</h2>
+      <p class="hint">Choisis le nom du fichier. Le téléchargement sera enregistré dans le dossier de téléchargements de ton navigateur.</p>
+      <label class="field">
+        <span>Nom du fichier</span>
+        <input id="filenameInput" type="text" value="last-frame.jpg" />
+      </label>
+      <p class="save-note" id="saveLocation">Le fichier sera enregistré dans le dossier “Téléchargements”.</p>
+    </div>
+    <div class="dialog-actions">
+      <button id="cancelExport" type="button">Annuler</button>
+      <button id="confirmExport" type="button">Télécharger</button>
+    </div>
+  </dialog>
 
   <script>
     const fileInput = document.getElementById('file');
@@ -44,6 +74,12 @@
     const statusEl = document.getElementById('status');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    const preview = document.getElementById('preview');
+    const previewImage = document.getElementById('previewImage');
+    const exportDialog = document.getElementById('exportDialog');
+    const filenameInput = document.getElementById('filenameInput');
+    const confirmExport = document.getElementById('confirmExport');
+    const cancelExport = document.getElementById('cancelExport');
 
     let objectUrl = null;
 
@@ -58,9 +94,19 @@
       }
     }
 
+    function sanitizeFilename(name) {
+      const trimmed = name.trim();
+      const withExtension = trimmed.toLowerCase().endsWith('.jpg') || trimmed.toLowerCase().endsWith('.jpeg')
+        ? trimmed
+        : `${trimmed}.jpg`;
+      return withExtension.replace(/[^a-zA-Z0-9._-]/g, '_') || 'last-frame.jpg';
+    }
+
     fileInput.addEventListener('change', () => {
       exportBtn.disabled = true;
       setStatus('Chargement de la vidéo…');
+      preview.hidden = true;
+      previewImage.src = '';
 
       const file = fileInput.files?.[0];
       if (!file) {
@@ -117,14 +163,21 @@
       const w = video.videoWidth;
       const h = video.videoHeight;
 
-      if (!w || !h) throw new Error("Dimensions vidéo indisponibles.");
+      if (!w || !h) throw new Error('Dimensions vidéo indisponibles.');
 
       canvas.width = w;
       canvas.height = h;
       ctx.drawImage(video, 0, 0, w, h);
     }
 
-    function downloadJpegFromCanvas(filename = 'last-frame.jpg', quality = 0.92) {
+    function updatePreview() {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      previewImage.src = dataUrl;
+      preview.hidden = false;
+      return dataUrl;
+    }
+
+    function downloadJpegFromCanvas(filename, quality = 0.92) {
       const dataUrl = canvas.toDataURL('image/jpeg', quality);
       const a = document.createElement('a');
       a.href = dataUrl;
@@ -134,7 +187,28 @@
       a.remove();
     }
 
-    exportBtn.addEventListener('click', async () => {
+    function openExportDialog() {
+      if (typeof exportDialog.showModal === 'function') {
+        exportDialog.showModal();
+      } else {
+        const fallbackName = prompt('Nom du fichier (avec .jpg)', 'last-frame.jpg');
+        if (fallbackName) {
+          filenameInput.value = fallbackName;
+          confirmExport.click();
+        }
+      }
+    }
+
+    exportBtn.addEventListener('click', () => {
+      openExportDialog();
+    });
+
+    cancelExport.addEventListener('click', () => {
+      exportDialog.close();
+    });
+
+    confirmExport.addEventListener('click', async () => {
+      exportDialog.close();
       exportBtn.disabled = true;
       setStatus('Extraction de la dernière image…');
 
@@ -153,9 +227,12 @@
         }
 
         drawCurrentFrameToCanvas();
-        downloadJpegFromCanvas();
+        updatePreview();
 
-        setStatus('JPEG exporté ✅');
+        const safeName = sanitizeFilename(filenameInput.value || 'last-frame.jpg');
+        downloadJpegFromCanvas(safeName);
+
+        setStatus('JPEG exporté ✅ (enregistré dans le dossier Téléchargements du navigateur)');
       } catch (err) {
         console.error(err);
         setStatus("Échec de l'export. Essaie de lancer la vidéo 1 seconde puis réessaie (certains formats sont capricieux).");
