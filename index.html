@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video → Dernière image (JPEG)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    video { width: 100%; max-height: 520px; background: #111; border-radius: 12px; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.6; }
+    .hint { color: #4b5563; font-size: 14px; line-height: 1.4; }
+    .status { font-size: 14px; color: #111827; }
+    .status small { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <h1>Extraire la dernière image d’une vidéo (JPEG)</h1>
+
+  <div class="card">
+    <div class="row">
+      <input id="file" type="file" accept="video/*" />
+      <button id="exportBtn" disabled>Exporter la dernière image (JPEG)</button>
+    </div>
+    <p class="hint">
+      Tout se fait dans ton navigateur : la vidéo n’est pas envoyée sur Internet.
+    </p>
+    <p class="status" id="status">Choisis un fichier vidéo.</p>
+  </div>
+
+  <div style="height: 14px"></div>
+
+  <video id="video" controls playsinline></video>
+
+  <!-- Canvas caché : sert à capturer l’image -->
+  <canvas id="canvas" style="display:none"></canvas>
+
+  <script>
+    const fileInput = document.getElementById('file');
+    const video = document.getElementById('video');
+    const exportBtn = document.getElementById('exportBtn');
+    const statusEl = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+
+    let objectUrl = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function cleanupObjectUrl() {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+    }
+
+    fileInput.addEventListener('change', () => {
+      exportBtn.disabled = true;
+      setStatus('Chargement de la vidéo…');
+
+      const file = fileInput.files?.[0];
+      if (!file) {
+        setStatus('Choisis un fichier vidéo.');
+        return;
+      }
+
+      cleanupObjectUrl();
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      // On a la durée + dimensions à ce stade
+      if (!isFinite(video.duration) || video.duration <= 0) {
+        setStatus("Impossible de lire la durée de la vidéo.");
+        exportBtn.disabled = true;
+        return;
+      }
+
+      exportBtn.disabled = false;
+      setStatus(`Vidéo prête. Durée : ${video.duration.toFixed(2)} s`);
+    });
+
+    async function seekToLastFrame() {
+      // Certaines vidéos n’aiment pas currentTime = duration exactement.
+      // On vise "un cheveu" avant la fin.
+      const epsilon = Math.min(0.2, Math.max(0.04, video.duration * 0.001));
+      const targetTime = Math.max(0, video.duration - epsilon);
+
+      return new Promise((resolve, reject) => {
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        const onError = () => {
+          video.removeEventListener('error', onError);
+          reject(new Error('Erreur pendant le seek'));
+        };
+
+        video.addEventListener('seeked', onSeeked, { once: true });
+        video.addEventListener('error', onError, { once: true });
+
+        try {
+          video.currentTime = targetTime;
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+
+    function drawCurrentFrameToCanvas() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+
+      if (!w || !h) throw new Error("Dimensions vidéo indisponibles.");
+
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
+    }
+
+    function downloadJpegFromCanvas(filename = 'last-frame.jpg', quality = 0.92) {
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    exportBtn.addEventListener('click', async () => {
+      exportBtn.disabled = true;
+      setStatus('Extraction de la dernière image…');
+
+      try {
+        // Pause pour éviter des comportements bizarres selon navigateur
+        video.pause();
+
+        await seekToLastFrame();
+
+        // Certains navigateurs ont besoin d’un petit battement après seeked
+        // pour que l’image soit effectivement décodée.
+        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+          await new Promise(resolve => video.requestVideoFrameCallback(() => resolve()));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+
+        drawCurrentFrameToCanvas();
+        downloadJpegFromCanvas();
+
+        setStatus('JPEG exporté ✅');
+      } catch (err) {
+        console.error(err);
+        setStatus("Échec de l'export. Essaie de lancer la vidéo 1 seconde puis réessaie (certains formats sont capricieux).");
+      } finally {
+        exportBtn.disabled = false;
+      }
+    });
+
+    window.addEventListener('beforeunload', cleanupObjectUrl);
+  </script>
+</body>
+</html>
