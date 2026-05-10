@@ -147,6 +147,21 @@
       });
     }
 
+    async function primeVideoPlayback() {
+      try {
+        const playResult = video.play();
+        if (playResult && typeof playResult.then === 'function') {
+          await playResult;
+        } else {
+          await waitForEvent(video, 'playing');
+        }
+        await new Promise(resolve => setTimeout(resolve, 120));
+        video.pause();
+      } catch (err) {
+        // Si la lecture automatique échoue, on continue quand même.
+      }
+    }
+
     async function seekToLastFrame() {
       if (video.readyState < 2) {
         await waitForEvent(video, 'loadeddata');
@@ -222,12 +237,15 @@
     confirmExport.addEventListener('click', async () => {
       exportDialog.close();
       exportBtn.disabled = true;
-      setStatus('Extraction de la dernière image…');
+      setStatus('Lecture rapide pour préparer la vidéo…');
 
       try {
         // Pause pour éviter des comportements bizarres selon navigateur
         video.pause();
 
+        await primeVideoPlayback();
+
+        setStatus('Extraction de la dernière image…');
         await seekToLastFrame();
 
         // Certains navigateurs ont besoin d’un petit battement après seeked
