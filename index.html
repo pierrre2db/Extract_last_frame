@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video → Dernière image (JPEG)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    video { width: 100%; max-height: 520px; background: #111; border-radius: 12px; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.6; }
+    .hint { color: #4b5563; font-size: 14px; line-height: 1.4; }
+    .status { font-size: 14px; color: #111827; }
+    .status small { color: #6b7280; }
+    .preview { margin-top: 16px; }
+    .preview img { max-width: 100%; border-radius: 12px; border: 1px solid #e5e7eb; }
+    dialog { border: none; border-radius: 12px; padding: 0; width: min(520px, 100%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2); }
+    .dialog-content { padding: 20px; }
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 20px; }
+    .dialog-title { margin: 0 0 8px; font-size: 18px; }
+    .field { display: grid; gap: 6px; margin: 12px 0; }
+    input[type="text"] { padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; }
+    .save-note { margin: 0; font-size: 13px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <h1>Extraire la dernière image d’une vidéo (JPEG)</h1>
+
+  <div class="card">
+    <div class="row">
+      <input id="file" type="file" accept="video/*" />
+      <button id="exportBtn" disabled>Exporter la dernière image (JPEG)</button>
+    </div>
+    <p class="hint">
+      Tout se fait dans ton navigateur : la vidéo n’est pas envoyée sur Internet.
+    </p>
+    <p class="status" id="status">Choisis un fichier vidéo.</p>
+  </div>
+
+  <div class="preview" id="preview" hidden>
+    <h2>Aperçu de l’image</h2>
+    <img id="previewImage" alt="Aperçu de la dernière image exportée" />
+  </div>
+
+  <div style="height: 14px"></div>
+
+  <video id="video" controls playsinline></video>
+
+  <!-- Canvas caché : sert à capturer l’image -->
+  <canvas id="canvas" style="display:none"></canvas>
+
+  <dialog id="exportDialog">
+    <div class="dialog-content">
+      <h2 class="dialog-title">Exporter l’image</h2>
+      <p class="hint">Choisis le nom du fichier. Le téléchargement sera enregistré dans le dossier de téléchargements de ton navigateur.</p>
+      <label class="field">
+        <span>Nom du fichier</span>
+        <input id="filenameInput" type="text" value="last-frame.jpg" />
+      </label>
+      <p class="save-note" id="saveLocation">Le fichier sera enregistré dans le dossier “Téléchargements”.</p>
+    </div>
+    <div class="dialog-actions">
+      <button id="cancelExport" type="button">Annuler</button>
+      <button id="confirmExport" type="button">Télécharger</button>
+    </div>
+  </dialog>
+
+  <script>
+    const fileInput = document.getElementById('file');
+    const video = document.getElementById('video');
+    const exportBtn = document.getElementById('exportBtn');
+    const statusEl = document.getElementById('status');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    const preview = document.getElementById('preview');
+    const previewImage = document.getElementById('previewImage');
+    const exportDialog = document.getElementById('exportDialog');
+    const filenameInput = document.getElementById('filenameInput');
+    const confirmExport = document.getElementById('confirmExport');
+    const cancelExport = document.getElementById('cancelExport');
+
+    let objectUrl = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function cleanupObjectUrl() {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+    }
+
+    function sanitizeFilename(name) {
+      const trimmed = name.trim();
+      const withExtension = trimmed.toLowerCase().endsWith('.jpg') || trimmed.toLowerCase().endsWith('.jpeg')
+        ? trimmed
+        : `${trimmed}.jpg`;
+      return withExtension.replace(/[^a-zA-Z0-9._-]/g, '_') || 'last-frame.jpg';
+    }
+
+    fileInput.addEventListener('change', () => {
+      exportBtn.disabled = true;
+      setStatus('Chargement de la vidéo…');
+      preview.hidden = true;
+      previewImage.src = '';
+
+      const file = fileInput.files?.[0];
+      if (!file) {
+        setStatus('Choisis un fichier vidéo.');
+        return;
+      }
+
+      cleanupObjectUrl();
+      objectUrl = URL.createObjectURL(file);
+      video.src = objectUrl;
+      video.load();
+    });
+
+    video.addEventListener('loadedmetadata', () => {
+      // On a la durée + dimensions à ce stade
+      if (!isFinite(video.duration) || video.duration <= 0) {
+        setStatus("Impossible de lire la durée de la vidéo.");
+        exportBtn.disabled = true;
+        return;
+      }
+
+      exportBtn.disabled = false;
+      setStatus(`Vidéo prête. Durée : ${video.duration.toFixed(2)} s`);
+    });
+
+    function waitForEvent(target, eventName) {
+      return new Promise((resolve, reject) => {
+        const onEvent = () => {
+          target.removeEventListener(eventName, onEvent);
+          resolve();
+        };
+        const onError = () => {
+          target.removeEventListener('error', onError);
+          reject(new Error('Erreur pendant le chargement'));
+        };
+        target.addEventListener(eventName, onEvent, { once: true });
+        target.addEventListener('error', onError, { once: true });
+      });
+    }
+
+    async function primeVideoPlayback() {
+      try {
+        const playResult = video.play();
+        if (playResult && typeof playResult.then === 'function') {
+          await playResult;
+        } else {
+          await waitForEvent(video, 'playing');
+        }
+        await new Promise(resolve => setTimeout(resolve, 120));
+        video.pause();
+      } catch (err) {
+        // Si la lecture automatique échoue, on continue quand même.
+      }
+    }
+
+    async function seekToLastFrame() {
+      if (video.readyState < 2) {
+        await waitForEvent(video, 'loadeddata');
+      }
+
+      // Certaines vidéos n’aiment pas currentTime = duration exactement.
+      // On vise "un cheveu" avant la fin.
+      const epsilon = Math.min(0.2, Math.max(0.04, video.duration * 0.001));
+      const targetTime = Math.max(0, video.duration - epsilon);
+
+      try {
+        video.currentTime = targetTime;
+      } catch (err) {
+        throw err;
+      }
+
+      await waitForEvent(video, 'seeked');
+
+      if (Math.abs(video.currentTime - targetTime) > 0.05) {
+        video.currentTime = targetTime;
+        await waitForEvent(video, 'seeked');
+      }
+    }
+
+    function drawCurrentFrameToCanvas() {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+
+      if (!w || !h) throw new Error('Dimensions vidéo indisponibles.');
+
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
+    }
+
+    function updatePreview() {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      previewImage.src = dataUrl;
+      preview.hidden = false;
+      return dataUrl;
+    }
+
+    function downloadJpegFromCanvas(filename, quality = 0.92) {
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    function openExportDialog() {
+      if (typeof exportDialog.showModal === 'function') {
+        exportDialog.showModal();
+      } else {
+        const fallbackName = prompt('Nom du fichier (avec .jpg)', 'last-frame.jpg');
+        if (fallbackName) {
+          filenameInput.value = fallbackName;
+          confirmExport.click();
+        }
+      }
+    }
+
+    exportBtn.addEventListener('click', () => {
+      openExportDialog();
+    });
+
+    cancelExport.addEventListener('click', () => {
+      exportDialog.close();
+    });
+
+    confirmExport.addEventListener('click', async () => {
+      exportDialog.close();
+      exportBtn.disabled = true;
+      setStatus('Lecture rapide pour préparer la vidéo…');
+
+      try {
+        // Pause pour éviter des comportements bizarres selon navigateur
+        video.pause();
+
+        await primeVideoPlayback();
+
+        setStatus('Extraction de la dernière image…');
+        await seekToLastFrame();
+
+        // Certains navigateurs ont besoin d’un petit battement après seeked
+        // pour que l’image soit effectivement décodée.
+        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+          await new Promise(resolve => video.requestVideoFrameCallback(() => resolve()));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 60));
+        }
+
+        drawCurrentFrameToCanvas();
+        updatePreview();
+
+        const safeName = sanitizeFilename(filenameInput.value || 'last-frame.jpg');
+        downloadJpegFromCanvas(safeName);
+
+        setStatus('JPEG exporté ✅ (enregistré dans le dossier Téléchargements du navigateur)');
+      } catch (err) {
+        console.error(err);
+        setStatus("Échec de l'export. Essaie de lancer la vidéo 1 seconde puis réessaie (certains formats sont capricieux).");
+      } finally {
+        exportBtn.disabled = false;
+      }
+    });
+
+    window.addEventListener('beforeunload', cleanupObjectUrl);
+  </script>
+</body>
+</html>
